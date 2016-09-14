@@ -504,12 +504,30 @@ object Future {
 
   /** Returns a new `Future` to the result of the first future in the list that is completed.
    */
-  def firstCompletedOf[T](futures: TraversableOnce[Future[T]])(implicit executor: ExecutionContext): Future[T] = {
+  @deprecated("Use the overloaded version of this method that doesn't take an ExecutionContext", "2.12")
+  def firstCompletedOf[T](futures: TraversableOnce[Future[T]])(implicit executor: ExecutionContext): Future[T] =
+    firstCompletedOf(futures)
+
+  /** Returns a new `Future` to the result of the first future in the list that is completed.
+   */
+  def firstCompletedOf[T](futures: TraversableOnce[Future[T]]): Future[T] = {
     val p = Promise[T]()
     val completeFirst: Try[T] => Unit = p tryComplete _
-    futures foreach { _ onComplete completeFirst }
+    futures foreach(_.onComplete(completeFirst)((internalExecutor)}
     p.future
   }
+
+  /** Asynchronously and non-blockingly returns a `Future` that will hold the optional result
+   *  of the first `Future` with a result that matches the predicate, failed `Future`s will be ignored.
+   *
+   * @tparam T        the type of the value in the future
+   * @param futures   the `scala.collection.immutable.Iterable` of Futures to search
+   * @param p         the predicate which indicates if it's a match
+   * @return          the `Future` holding the optional result of the search
+   */
+  @deprecated("Use the overloaded version of this method that doesn't take an ExecutionContext", "2.12")
+  def find[T](futures: scala.collection.immutable.Iterable[Future[T]])(p: T => Boolean)(executor: ExecutionContext): Future[Option[T]] =
+    find(futures)(p)
 
   /** Returns a `Future` that will hold the optional result of the first `Future` with a result that matches the predicate.
    */
@@ -530,13 +548,13 @@ object Future {
         }
       }
 
-      futuresBuffer.foreach(_ onComplete search)
+      futuresBuffer.foreach(_.onComplete(search)(internalExecutor))
 
       result.future
     }
   }
 
-  /** A non-blocking fold over the specified futures, with the start value of the given zero.
+  /** A non-blocking, asynchronous fold over the specified futures, with the start value of the given zero.
    *  The fold is performed on the thread where the last future is completed,
    *  the result will be the first failure of any of the futures, or any failure in the actual fold,
    *  or the result of the fold.
@@ -575,7 +593,7 @@ object Future {
     in.foldLeft(successful(cbf(in))) { (fr, a) =>
       val fb = fn(a)
       for (r <- fr; b <- fb) yield (r += b)
-    }.map(_.result())
+    }.map(_.result())(internalExecutor)
 
   // This is used to run callbacks which are internal
   // to scala.concurrent; our own callbacks are only
